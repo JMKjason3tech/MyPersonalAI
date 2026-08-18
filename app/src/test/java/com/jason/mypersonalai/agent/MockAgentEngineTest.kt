@@ -43,4 +43,54 @@ class MockAgentEngineTest {
         assertTrue(result.message.text.contains("second"))
         assertTrue(!result.message.text.contains("first"))
     }
+
+    // --- Milestone 3: tool routing ---
+
+    @Test
+    fun `a pure arithmetic expression is routed to the calculator tool`() = runTest {
+        val history = listOf(
+            Message(id = "1", role = Role.USER, text = "2 + 2", timestampMillis = 0L)
+        )
+
+        val result = engine.generateResponse(history)
+
+        assertTrue(result is AgentResult.Success)
+        assertEquals("4", (result as AgentResult.Success).message.text)
+    }
+
+    @Test
+    fun `a natural-language message is NOT routed to the calculator tool`() = runTest {
+        val history = listOf(
+            Message(id = "1", role = Role.USER, text = "what is 2 + 2", timestampMillis = 0L)
+        )
+
+        val result = engine.generateResponse(history)
+
+        assertTrue(result is AgentResult.Success)
+        // Falls back to the generic mock reply, not a computed "4".
+        assertTrue((result as AgentResult.Success).message.text.contains("Mock response"))
+    }
+
+    @Test
+    fun `an echo-prefixed message is routed to the echo tool`() = runTest {
+        val history = listOf(
+            Message(id = "1", role = Role.USER, text = "echo hello there", timestampMillis = 0L)
+        )
+
+        val result = engine.generateResponse(history)
+
+        assertTrue(result is AgentResult.Success)
+        assertEquals("hello there", (result as AgentResult.Success).message.text)
+    }
+
+    @Test
+    fun `an invalid expression surfaces as a structured failure, not a crash`() = runTest {
+        val history = listOf(
+            Message(id = "1", role = Role.USER, text = "2 + / 3", timestampMillis = 0L)
+        )
+
+        val result = engine.generateResponse(history)
+
+        assertTrue(result is AgentResult.Failure)
+    }
 }
