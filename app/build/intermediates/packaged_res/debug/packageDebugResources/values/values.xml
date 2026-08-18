@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">MyPersonalAI</string>
-    <string name="home_subtitle">Milestone 1: project skeleton is alive.</string>
-    <string name="home_title">MyPersonalAI</string>
-    <style name="Theme.MyPersonalAI" parent="android:Theme.Material.Light.NoActionBar"/>
-</resources>
