@@ -67,7 +67,6 @@ class MockAgentEngineTest {
         val result = engine.generateResponse(history)
 
         assertTrue(result is AgentResult.Success)
-        // Falls back to the generic mock reply, not a computed "4".
         assertTrue((result as AgentResult.Success).message.text.contains("Mock response"))
     }
 
@@ -92,5 +91,64 @@ class MockAgentEngineTest {
         val result = engine.generateResponse(history)
 
         assertTrue(result is AgentResult.Failure)
+    }
+
+    // --- Milestone 4: confirmation flow ---
+
+    @Test
+    fun `reset asks for confirmation instead of executing immediately`() = runTest {
+        val history = listOf(
+            Message(id = "1", role = Role.USER, text = "reset", timestampMillis = 0L)
+        )
+
+        val result = engine.generateResponse(history)
+
+        assertTrue(result is AgentResult.Success)
+        val text = (result as AgentResult.Success).message.text
+        assertTrue(text.contains("confirm", ignoreCase = true))
+    }
+
+    @Test
+    fun `confirming a pending reset executes it`() = runTest {
+        engine.generateResponse(
+            listOf(Message(id = "1", role = Role.USER, text = "reset", timestampMillis = 0L))
+        )
+
+        val result = engine.generateResponse(
+            listOf(Message(id = "2", role = Role.USER, text = "confirm", timestampMillis = 1L))
+        )
+
+        assertTrue(result is AgentResult.Success)
+        assertTrue((result as AgentResult.Success).message.text.contains("Reset acknowledged"))
+    }
+
+    @Test
+    fun `cancelling a pending reset aborts it without executing`() = runTest {
+        engine.generateResponse(
+            listOf(Message(id = "1", role = Role.USER, text = "reset", timestampMillis = 0L))
+        )
+
+        val result = engine.generateResponse(
+            listOf(Message(id = "2", role = Role.USER, text = "cancel", timestampMillis = 1L))
+        )
+
+        assertTrue(result is AgentResult.Success)
+        assertTrue((result as AgentResult.Success).message.text.contains("Cancelled"))
+    }
+
+    @Test
+    fun `unrelated text while a confirmation is pending re-prompts instead of executing`() = runTest {
+        engine.generateResponse(
+            listOf(Message(id = "1", role = Role.USER, text = "reset", timestampMillis = 0L))
+        )
+
+        val result = engine.generateResponse(
+            listOf(Message(id = "2", role = Role.USER, text = "hello", timestampMillis = 1L))
+        )
+
+        assertTrue(result is AgentResult.Success)
+        val text = (result as AgentResult.Success).message.text
+        assertTrue(text.contains("pending", ignoreCase = true))
+        assertTrue(!text.contains("Reset acknowledged"))
     }
 }
