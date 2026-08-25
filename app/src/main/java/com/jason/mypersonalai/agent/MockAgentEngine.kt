@@ -5,6 +5,7 @@ import com.jason.mypersonalai.android.adapters.AndroidBatteryInfoProvider
 import com.jason.mypersonalai.android.adapters.AndroidNetworkInfoProvider
 import com.jason.mypersonalai.android.adapters.AndroidNetworkSpeedTestProvider
 import com.jason.mypersonalai.android.adapters.AndroidDeviceInfoProvider
+import com.jason.mypersonalai.android.adapters.AndroidSettingsLauncherImpl
 import com.jason.mypersonalai.android.adapters.AndroidStorageInfoProvider
 import com.jason.mypersonalai.tools.ConfirmationResult
 import com.jason.mypersonalai.tools.ToolExecutionResult
@@ -14,25 +15,17 @@ import com.jason.mypersonalai.tools.ToolRouter
 import com.jason.mypersonalai.tools.impl.CalculatorTool
 import com.jason.mypersonalai.tools.impl.DeviceInfoTool
 import com.jason.mypersonalai.tools.impl.EchoTool
+import com.jason.mypersonalai.tools.impl.OpenSettingsTool
 import com.jason.mypersonalai.tools.impl.ResetTool
 import java.util.UUID
 import kotlinx.coroutines.delay
 
 /**
- * Deterministic local [AgentEngine].
+ * Deterministic local AgentEngine.
  *
- * No AI provider is connected. Normal tools are local and deterministic;
- * the explicit "speed test" command is the one exception because it
- * intentionally performs a small Internet throughput measurement.
- *
- * Milestone 3 added tool registry/routing. Milestone 4 added a
- * text-based confirmation flow for risky tools. Milestone 5 adds the
- * first real Android capability: [DeviceInfoTool], which only
- * registers when a real [Context] is supplied (it's null and safely
- * skipped in plain JVM unit tests — no Android dependency needed
- * there at all). This is why [context] is optional: it lets this
- * class remain fully unit-testable without Robolectric or a device,
- * while still doing real Android work when actually running on one.
+ * Android capabilities are exposed through registered tools. Settings
+ * actions only launch the official Android Settings UI; they do not modify
+ * protected system state directly.
  */
 class MockAgentEngine(
     context: Context? = null,
@@ -54,12 +47,11 @@ class MockAgentEngine(
                     networkSpeedTestProvider = AndroidNetworkSpeedTestProvider()
                 )
             )
+            register(OpenSettingsTool(AndroidSettingsLauncherImpl(appContext)))
         }
     }
-    private val toolRouter = ToolRouter(toolRegistry)
 
-    // Milestone 4: a single pending tool call awaiting explicit
-    // confirmation.
+    private val toolRouter = ToolRouter(toolRegistry)
     private var pendingToolId: String? = null
     private var pendingRawInput: String? = null
 
@@ -75,32 +67,37 @@ class MockAgentEngine(
             return handlePendingConfirmation(text)
         }
 
-        // Echo trigger.
         if (text.startsWith("echo ", ignoreCase = true)) {
             return runTool(toolId = "echo", rawInput = text.substring("echo ".length))
         }
 
-        // Calculator trigger.
         if (isArithmeticExpression(text)) {
             return runTool(toolId = "calculator", rawInput = text)
         }
 
-        // Reset trigger. HIGH risk -> gated by ConfirmationPolicy.
         if (text.equals("reset", ignoreCase = true)) {
             return runTool(toolId = "reset", rawInput = text)
         }
 
-        // Device info trigger. Only actually routes if the tool got
-        // registered (i.e. a real Context was supplied) — otherwise
-        // this falls through to the generic mock reply below, which
-        // is the "degrade gracefully" behavior the plan calls for.
-        val deviceInfoKeywords = listOf("battery", "network", "wifi", "wi-fi", "storage", "device info", "device information", "phone info", "hardware", "speed test", "internet speed", "network speed", "download speed", "upload speed")
-        val looksLikeDeviceInfoQuery = deviceInfoKeywords.any { text.contains(it, ignoreCase = true) }
-        if (looksLikeDeviceInfoQuery && toolRegistry.find("device_info") != null) {
-            return runTool(toolId = "device_info", rawInput = text)
+        val resolution = IntentResolver.resolve(text)
+        when (resolution.intent) {
+            IntentResolver.Intent.OPEN_SETTINGS -> {
+                if (toolRegistry.find("open_settings") != null) {
+                    return runTool(toolId = "open_settings", rawInput = text)
+                }
+            }
+            IntentResolver.Intent.DEVICE_INFO -> {
+                if (toolRegistry.find("device_info") != null) {
+                    return runTool(toolId = "device_info", rawInput = text)
+                }
+            }
+            IntentResolver.Intent.UNKNOWN -> Unit
         }
 
-        // Fallback: same Milestone 2 mock behavior as before.
+        // Preserve the established Milestone 2/3/4 fallback contract:
+        // unhandled natural-language input receives the deterministic mock
+        // response. IntentResolver controls routing only; it does not change
+        // the existing generic-response behavior.
         delay(responseDelayMillis)
         val turnNumber = history.count { it.role == Role.ASSISTANT } + 1
         val replyText = "Mock response #$turnNumber — no AI provider is connected yet. " +

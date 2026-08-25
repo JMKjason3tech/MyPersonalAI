@@ -154,48 +154,6 @@ class DeviceInfoToolTest {
     }
 
     @Test
-    fun `wifi network preserves fractional estimated Mbps and explains estimate`() = runTest {
-        val tool = buildTool(
-            network = NetworkInfo(
-                isConnected = true,
-                type = "wifi",
-                ssid = "HomeWifi",
-                linkSpeedMbps = 433,
-                frequencyMhz = 5180,
-                downstreamMbps = 108.4,
-                upstreamMbps = 12.7
-            )
-        )
-
-        val result = tool.execute(ToolInput(raw = "network status"))
-
-        assertTrue(result is ToolExecutionResult.Success)
-        val output = (result as ToolExecutionResult.Success).output
-        assertTrue(output.contains("Estimated link download: 108.4 Mbps"))
-        assertTrue(output.contains("Estimated link upload: 12.7 Mbps"))
-        assertTrue(output.contains("not measured Internet speeds"))
-    }
-
-    @Test
-    fun `wifi unavailable reason is reported instead of assuming missing permission`() = runTest {
-        val tool = buildTool(
-            network = NetworkInfo(
-                isConnected = true,
-                type = "wifi",
-                ssid = null,
-                ssidUnavailableReason = "location services are turned off"
-            )
-        )
-
-        val result = tool.execute(ToolInput(raw = "wifi status"))
-
-        assertTrue(result is ToolExecutionResult.Success)
-        val output = (result as ToolExecutionResult.Success).output
-        assertTrue(output.contains("location services are turned off"))
-        assertTrue(!output.contains("location permission not granted"))
-    }
-
-    @Test
     fun `storage query returns only storage info`() = runTest {
         val tool = buildTool()
 

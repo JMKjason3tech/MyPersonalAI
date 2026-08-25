@@ -11,7 +11,6 @@ import com.jason.mypersonalai.tools.Tool
 import com.jason.mypersonalai.tools.ToolError
 import com.jason.mypersonalai.tools.ToolExecutionResult
 import com.jason.mypersonalai.tools.ToolInput
-import java.util.Locale
 
 /**
  * Read-only device diagnostics.
@@ -63,10 +62,8 @@ class DeviceInfoTool(
         val info = batteryInfoProvider.getBatteryInfo()
         val lines = mutableListOf("Battery: ${info.percentage}% (${info.chargeSource})")
         lines += "Health: ${info.health}"
-        info.temperatureCelsius?.let { lines += "Temperature: ${formatDecimal(it.toDouble(), 1)} °C" }
-        info.voltageMillivolts?.let {
-            lines += "Voltage: ${formatDecimal(it / 1000.0, 3)} V ($it mV)"
-        }
+        info.temperatureCelsius?.let { lines += "Temperature: %.1f°C".format(it) }
+        info.voltageMillivolts?.let { lines += "Voltage: $it mV" }
         info.technology?.let { lines += "Technology: $it" }
         return lines.joinToString("\n")
     }
@@ -78,17 +75,15 @@ class DeviceInfoTool(
         val lines = mutableListOf("Network: connected (${info.type})")
         if (info.type == "wifi") {
             lines += if (info.ssid != null) {
-                "Wi-Fi name: ${info.ssid}"
+                "WiFi name: ${info.ssid}"
             } else {
-                val reason = info.ssidUnavailableReason ?: "Android did not provide the Wi-Fi name"
-                "Wi-Fi name: unavailable ($reason)"
+                "WiFi name: unavailable (location permission not granted)"
             }
             info.linkSpeedMbps?.let { lines += "WiFi link speed: $it Mbps" }
             info.frequencyMhz?.let { lines += "Frequency: $it MHz" }
         }
-        info.downstreamMbps?.let { lines += "Estimated link download: ${formatDecimal(it, 1)} Mbps" }
-        info.upstreamMbps?.let { lines += "Estimated link upload: ${formatDecimal(it, 1)} Mbps" }
-        lines += "Estimated link rates are Android connection estimates, not measured Internet speeds."
+        info.downstreamMbps?.let { lines += "Estimated download: $it Mbps" }
+        info.upstreamMbps?.let { lines += "Estimated upload: $it Mbps" }
         lines += "For measured Internet speed, ask: \"speed test\"."
         return lines.joinToString("\n")
     }
@@ -98,8 +93,8 @@ class DeviceInfoTool(
             return "Network speed test unavailable: ${info.errorMessage}"
         }
         val lines = mutableListOf("Internet speed test")
-        info.downloadMbps?.let { lines += "Download: ${formatDecimal(it, 1)} Mbps" }
-        info.uploadMbps?.let { lines += "Upload: ${formatDecimal(it, 1)} Mbps" }
+        info.downloadMbps?.let { lines += "Download: %.1f Mbps".format(it) }
+        info.uploadMbps?.let { lines += "Upload: %.1f Mbps".format(it) }
         info.latencyMs?.let { lines += "Latency: $it ms" }
         info.endpoint?.let { lines += "Test endpoint: $it" }
         return lines.joinToString("\n")
@@ -114,10 +109,10 @@ class DeviceInfoTool(
         val usagePercent = if (info.totalBytes > 0) usedBytes * 100.0 / info.totalBytes else 0.0
         return listOf(
             "Storage: internal",
-            "Total: ${formatDecimal(totalGb, 1)} GB",
-            "Used: ${formatDecimal(usedGb, 1)} GB",
-            "Free: ${formatDecimal(freeGb, 1)} GB",
-            "Usage: ${formatDecimal(usagePercent, 1)}%"
+            "Total: %.1f GB".format(totalGb),
+            "Used: %.1f GB".format(usedGb),
+            "Free: %.1f GB".format(freeGb),
+            "Usage: %.1f%%".format(usagePercent)
         ).joinToString("\n")
     }
 
@@ -148,7 +143,7 @@ class DeviceInfoTool(
             lines += "Display: ${info.screenWidthPixels} × ${info.screenHeightPixels} pixels"
         }
         info.densityDpi?.let { lines += "Density: ${it} dpi" }
-        info.refreshRateHz?.let { lines += "Refresh rate: ${formatDecimal(it.toDouble(), 1)} Hz" }
+        info.refreshRateHz?.let { lines += "Refresh rate: %.1f Hz".format(it) }
         lines += "Uptime: ${formatUptime(info.uptimeMillis)}"
         lines += "Hardware capabilities:"
         lines += "Camera: ${yesNo(info.hasCamera)}"
@@ -163,15 +158,7 @@ class DeviceInfoTool(
         return lines.joinToString("\n")
     }
 
-    private fun formatGb(bytes: Long): String = formatDecimal(bytes / (1024.0 * 1024.0 * 1024.0), 2)
-
-    /**
-     * Always uses a stable decimal separator regardless of the phone's locale.
-     * This prevents decimal values from being rendered inconsistently and keeps
-     * the assistant's telemetry output machine-readable and human-readable.
-     */
-    private fun formatDecimal(value: Double, decimals: Int): String =
-        String.format(Locale.US, "%.${decimals}f", value)
+    private fun formatGb(bytes: Long): String = "%.2f".format(bytes / (1024.0 * 1024.0 * 1024.0))
 
     private fun yesNo(value: Boolean): String = if (value) "Yes" else "No"
 

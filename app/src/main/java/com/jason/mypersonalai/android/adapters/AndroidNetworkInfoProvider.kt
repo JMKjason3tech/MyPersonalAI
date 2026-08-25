@@ -33,9 +33,6 @@ class AndroidNetworkInfoProvider(
             else -> "other"
         }
 
-        // ConnectivityManager reports these values in Kbps. Keep the
-        // fractional part when converting to Mbps; integer division was
-        // responsible for losing values such as 108.4 Mbps -> 108 Mbps.
         val downstreamMbps = capabilities.linkDownstreamBandwidthKbps
             .takeIf { it > 0 }
             ?.div(1000.0)
