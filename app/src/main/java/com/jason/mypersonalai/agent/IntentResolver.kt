@@ -32,7 +32,14 @@ object IntentResolver {
         "notifications" to listOf("notification", "notifications"),
         "accessibility" to listOf("accessibility"),
         "date_time" to listOf("date and time", "date", "time", "clock"),
-        "security" to listOf("security")
+        "security" to listOf("security"),
+        "network" to listOf("network", "internet", "mobile data")
+    )
+
+    private val deviceInfoTargets = linkedMapOf(
+        "device_info" to listOf("device info", "device information", "phone info", "hardware"),
+        "network" to listOf("network", "internet", "mobile data"),
+        "speed_test" to listOf("speed test", "internet speed", "network speed", "download speed", "upload speed")
     )
 
     private val navigationVerbs = listOf(
@@ -55,44 +62,63 @@ object IntentResolver {
         val text = normalize(input)
         if (text.isBlank()) return Resolution(Intent.UNKNOWN, 0)
 
-        val target = findTarget(text) ?: return Resolution(Intent.UNKNOWN, 0)
+        val settingsTarget = findTarget(text, settingsTargets)
+        val deviceInfoTarget = findTarget(text, deviceInfoTargets)
+        val target = settingsTarget ?: deviceInfoTarget
+        if (target == null) return Resolution(Intent.UNKNOWN, 0)
+
         val hasSettingsWord = text.contains("settings")
         val hasNavigationVerb = navigationVerbs.any(text::contains)
         val hasConfigurationVerb = configurationVerbs.any(text::contains)
         val hasInformationVerb = informationVerbs.any(text::contains)
 
+        // Device-information targets are never opened as Settings merely
+        // because a sentence contains "change" or "show". They represent
+        // information/diagnostics and should be handled by DeviceInfoTool.
+        if (settingsTarget == null && deviceInfoTarget != null) {
+            if (hasInformationVerb || isSimpleTargetRequest(text, deviceInfoTarget, deviceInfoTargets)) {
+                return Resolution(Intent.DEVICE_INFO, 90, deviceInfoTarget)
+            }
+            return Resolution(Intent.UNKNOWN, 0, deviceInfoTarget)
+        }
+
         // Explicit configuration language means the user wants the place
         // where the setting can be changed, even when "settings" is omitted.
         if (hasConfigurationVerb) {
-            return Resolution(Intent.OPEN_SETTINGS, 97, target)
+            return Resolution(Intent.OPEN_SETTINGS, 97, settingsTarget)
         }
 
         // Information language wins over generic words such as "show" when
         // the user is clearly asking for a status/value/details response.
         if (hasInformationVerb && !hasSettingsWord) {
-            return Resolution(Intent.DEVICE_INFO, 90, target)
+            return Resolution(Intent.DEVICE_INFO, 90, settingsTarget)
         }
 
         if (hasSettingsWord || hasNavigationVerb) {
-            return Resolution(Intent.OPEN_SETTINGS, 95, target)
+            return Resolution(Intent.OPEN_SETTINGS, 95, settingsTarget)
         }
 
         // A bare, short target such as "battery" remains a useful device-info
         // request. Arbitrary sentences containing a target do not fall back
         // to Device Info anymore.
-        if (isSimpleTargetRequest(text, target)) {
-            return Resolution(Intent.DEVICE_INFO, 80, target)
+        if (isSimpleTargetRequest(text, settingsTarget, settingsTargets)) {
+            return Resolution(Intent.DEVICE_INFO, 80, settingsTarget)
         }
 
-        return Resolution(Intent.UNKNOWN, 0)
+        return Resolution(Intent.UNKNOWN, 0, settingsTarget)
     }
 
-    private fun findTarget(text: String): String? = settingsTargets.entries.firstOrNull { entry ->
-        entry.value.any { phrase -> containsPhrase(text, phrase) }
-    }?.key
+    private fun findTarget(text: String, targets: Map<String, List<String>>): String? =
+        targets.entries.firstOrNull { entry ->
+            entry.value.any { phrase -> containsPhrase(text, phrase) }
+        }?.key
 
-    private fun isSimpleTargetRequest(text: String, target: String): Boolean {
-        val targetWords = settingsTargets[target].orEmpty()
+    private fun isSimpleTargetRequest(
+        text: String,
+        target: String,
+        targets: Map<String, List<String>>
+    ): Boolean {
+        val targetWords = targets[target].orEmpty()
         val cleaned = text.removeSuffix("settings").trim()
         return cleaned.split(" ").size <= 3 && targetWords.any { containsPhrase(cleaned, it) }
     }
