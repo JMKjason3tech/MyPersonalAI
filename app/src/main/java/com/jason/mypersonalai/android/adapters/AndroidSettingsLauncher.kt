@@ -2,6 +2,7 @@ package com.jason.mypersonalai.android.adapters
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
 import com.jason.mypersonalai.android.capabilities.AndroidSettingsLauncher
 import com.jason.mypersonalai.android.capabilities.SettingsLaunchResult
@@ -65,10 +66,22 @@ class AndroidSettingsLauncherImpl(
         request.contains("location") || request.contains("gps") -> listOf(Settings.ACTION_LOCATION_SOURCE_SETTINGS to "location settings")
         request.contains("storage") -> listOf(Settings.ACTION_INTERNAL_STORAGE_SETTINGS to "storage settings")
         request.contains("app") || request.contains("application") -> listOf(Settings.ACTION_APPLICATION_SETTINGS to "app settings")
-        request.contains("notification") -> listOf(Settings.ACTION_NOTIFICATION_SETTINGS to "notification settings")
+        request.contains("notification") -> notificationSettingsCandidates()
         request.contains("accessibility") -> listOf(Settings.ACTION_ACCESSIBILITY_SETTINGS to "accessibility settings")
         request.contains("date") || request.contains("time") || request.contains("clock") -> listOf(Settings.ACTION_DATE_SETTINGS to "date and time settings")
         request.contains("security") -> listOf(Settings.ACTION_SECURITY_SETTINGS to "security settings")
         else -> emptyList()
+    }
+
+    private fun notificationSettingsCandidates(): List<Pair<String, String>> {
+        // ACTION_ALL_APPS_NOTIFICATION_SETTINGS is the explicit Android
+        // action for the system list of apps that can send notifications.
+        // It was added in API 33, so keep the older action as a fallback.
+        return buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Settings.ACTION_ALL_APPS_NOTIFICATION_SETTINGS to "general notification settings")
+            }
+            add(Settings.ACTION_NOTIFICATION_SETTINGS to "general notification settings")
+        }
     }
 }
