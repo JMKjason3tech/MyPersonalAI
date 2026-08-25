@@ -1,5 +1,6 @@
 package com.jason.mypersonalai.conversation
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jason.mypersonalai.agent.AgentEngine
@@ -27,9 +28,15 @@ import kotlinx.coroutines.launch
  * [agentEngine] defaults to [MockAgentEngine] for milestone 2. A later
  * milestone swaps this default (or injects a different implementation)
  * without changing this class's public surface.
+ *
+ * [context] was added in Milestone 5, purely so it can be forwarded to
+ * [MockAgentEngine] for its Android-capability tools (device info).
+ * This class does nothing else with it and holds no reference beyond
+ * this default-parameter forwarding.
  */
 class ConversationViewModel(
-    private val agentEngine: AgentEngine = MockAgentEngine()
+    context: Context? = null,
+    private val agentEngine: AgentEngine = MockAgentEngine(context = context)
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ConversationUiState())

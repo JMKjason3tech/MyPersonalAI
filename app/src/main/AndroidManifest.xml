@@ -2,12 +2,46 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-        Milestone 1 deliberately requests ZERO permissions.
-        Future milestones (voice, tools, network research, etc.) will
-        each add the specific permission they need, one at a time,
-        and will be called out for approval per the confirmation policy
-        in the project instructions.
+        Milestone 1 deliberately requested ZERO permissions.
+        Milestone 5 adds the first one, below, following the
+        least-privilege principle: each permission is added only when
+        a specific capability needs it, and documented here with why.
     -->
+
+    <!--
+        Required by: DeviceInfoTool's network-status capability
+        (com.jason.mypersonalai.android.adapters.AndroidNetworkInfoProvider).
+        This is a "normal" permission: granted automatically at install
+        time, no runtime prompt shown to the user, and it only allows
+        reading connectivity state (e.g. "connected via wifi"); it
+        does not grant access to browse the network or see other apps'
+        traffic. If ever removed, AndroidNetworkInfoProvider degrades
+        to reporting "unknown" rather than crashing.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Required only for the explicit Internet speed-test command. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        Required by: DeviceInfoTool's WiFi link-speed/frequency detail
+        (com.jason.mypersonalai.android.adapters.AndroidNetworkInfoProvider).
+        "Normal" permission; granted at install, no runtime prompt.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!--
+        Required by: DeviceInfoTool's WiFi network NAME (SSID) detail
+        (com.jason.mypersonalai.android.adapters.AndroidNetworkInfoProvider).
+        This is a "dangerous" permission, unlike everything else in this
+        file: Android treats WiFi SSID as location-adjacent data, so
+        reading it requires location access, and the system shows the
+        user a real permission dialog. Requested once at app startup
+        (see com.jason.mypersonalai.ui.ConversationRoute). If denied,
+        AndroidNetworkInfoProvider degrades gracefully; it simply
+        omits the network name rather than failing.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application
         android:allowBackup="false"

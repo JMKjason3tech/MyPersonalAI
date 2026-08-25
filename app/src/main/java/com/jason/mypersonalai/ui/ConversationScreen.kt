@@ -1,5 +1,7 @@
 package com.jason.mypersonalai.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,11 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.Manifest
 import com.jason.mypersonalai.agent.Message
 import com.jason.mypersonalai.agent.Role
 import com.jason.mypersonalai.conversation.ConversationUiState
@@ -51,14 +55,38 @@ import com.jason.mypersonalai.conversation.ConversationViewModel
  * Stateful entry point: owns/obtains the [ConversationViewModel] and
  * connects it to the stateless [ConversationScreen]. This is the only
  * place in the UI layer that knows a ViewModel exists.
+ *
+ * As of Milestone 5, this is also the only place in the UI layer that
+ * touches [android.content.Context] — it's read here via [LocalContext]
+ * purely to forward the application context down to [ConversationViewModel]
+ * (and from there to [com.jason.mypersonalai.agent.MockAgentEngine]'s
+ * Android-capability tools). Nothing else in the UI layer needs it.
+ *
+ * Milestone 5b: this is also the only place that requests a runtime
+ * permission. ACCESS_FINE_LOCATION is requested once, on first
+ * composition, purely so DeviceInfoTool's WiFi-name capability can
+ * work -- see AndroidNetworkInfoProvider for what happens if it's
+ * denied (it degrades gracefully, never crashes or blocks the app).
  */
 @Composable
 fun ConversationRoute() {
+    val appContext = LocalContext.current.applicationContext
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { /* Result isn't tracked here -- AndroidNetworkInfoProvider re-checks
+           permission state itself at query time, so no callback handling
+           is needed on this side either way. */ }
+
+    LaunchedEffect(Unit) {
+        locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
     val viewModel: ConversationViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ConversationViewModel() as T
+                return ConversationViewModel(context = appContext) as T
             }
         }
     )
