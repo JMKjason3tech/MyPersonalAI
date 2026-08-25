@@ -55,27 +55,33 @@ object IntentResolver {
         val text = normalize(input)
         if (text.isBlank()) return Resolution(Intent.UNKNOWN, 0)
 
-        val settingsTarget = findTarget(text)
-        if (settingsTarget != null) {
-            val hasNavigationVerb = navigationVerbs.any(text::contains)
-            val hasConfigurationVerb = configurationVerbs.any(text::contains)
-            val hasInformationVerb = informationVerbs.any(text::contains)
+        val target = findTarget(text) ?: return Resolution(Intent.UNKNOWN, 0)
+        val hasSettingsWord = text.contains("settings")
+        val hasNavigationVerb = navigationVerbs.any(text::contains)
+        val hasConfigurationVerb = configurationVerbs.any(text::contains)
+        val hasInformationVerb = informationVerbs.any(text::contains)
 
-            if (hasNavigationVerb || hasConfigurationVerb) {
-                val confidence = if (hasNavigationVerb && hasConfigurationVerb) 98 else 95
-                return Resolution(Intent.OPEN_SETTINGS, confidence, settingsTarget)
-            }
+        // Explicit configuration language means the user wants the place
+        // where the setting can be changed, even when "settings" is omitted.
+        if (hasConfigurationVerb) {
+            return Resolution(Intent.OPEN_SETTINGS, 97, target)
+        }
 
-            // A bare, short target such as "battery" or "wifi settings" is
-            // still useful, but arbitrary sentences containing a target are
-            // no longer allowed to fall through to Device Info.
-            if (!hasInformationVerb && isSimpleTargetRequest(text, settingsTarget)) {
-                return Resolution(Intent.DEVICE_INFO, 80, settingsTarget)
-            }
+        // Information language wins over generic words such as "show" when
+        // the user is clearly asking for a status/value/details response.
+        if (hasInformationVerb && !hasSettingsWord) {
+            return Resolution(Intent.DEVICE_INFO, 90, target)
+        }
 
-            if (hasInformationVerb) {
-                return Resolution(Intent.DEVICE_INFO, 90, settingsTarget)
-            }
+        if (hasSettingsWord || hasNavigationVerb) {
+            return Resolution(Intent.OPEN_SETTINGS, 95, target)
+        }
+
+        // A bare, short target such as "battery" remains a useful device-info
+        // request. Arbitrary sentences containing a target do not fall back
+        // to Device Info anymore.
+        if (isSimpleTargetRequest(text, target)) {
+            return Resolution(Intent.DEVICE_INFO, 80, target)
         }
 
         return Resolution(Intent.UNKNOWN, 0)
