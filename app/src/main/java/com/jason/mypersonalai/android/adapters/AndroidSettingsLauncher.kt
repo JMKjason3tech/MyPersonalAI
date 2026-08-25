@@ -74,14 +74,20 @@ class AndroidSettingsLauncherImpl(
     }
 
     private fun notificationSettingsCandidates(): List<Pair<String, String>> {
-        // ACTION_ALL_APPS_NOTIFICATION_SETTINGS is the explicit Android
-        // action for the system list of apps that can send notifications.
-        // It was added in API 33, so keep the older action as a fallback.
+        // Prefer the API 33+ all-app notification destination. This avoids
+        // accidentally opening MyPersonalAI's own notification page and
+        // keeps the request focused on notification settings rather than the
+        // generic Android Settings home screen.
         return buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Settings.ACTION_ALL_APPS_NOTIFICATION_SETTINGS to "general notification settings")
+                add(Settings.ACTION_ALL_APPS_NOTIFICATION_SETTINGS to "notification settings")
             }
-            add(Settings.ACTION_NOTIFICATION_SETTINGS to "general notification settings")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // Use the official action string directly because the current
+                // compile SDK does not expose ACTION_NOTIFICATION_SETTINGS as
+                // a Kotlin constant.
+                add("android.settings.NOTIFICATION_SETTINGS" to "notification settings")
+            }
         }
     }
 }
