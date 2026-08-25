@@ -50,8 +50,8 @@ class MockAgentEngine(
             register(OpenSettingsTool(AndroidSettingsLauncherImpl(appContext)))
         }
     }
-    private val toolRouter = ToolRouter(toolRegistry)
 
+    private val toolRouter = ToolRouter(toolRegistry)
     private var pendingToolId: String? = null
     private var pendingRawInput: String? = null
 
@@ -79,38 +79,31 @@ class MockAgentEngine(
             return runTool(toolId = "reset", rawInput = text)
         }
 
-        // Milestone 5C: natural-language requests to open Android Settings.
-        // Keep this deliberately intent-oriented rather than requiring one
-        // exact command. Only route when a real Android Settings tool exists.
-        val settingsKeywords = listOf(
-            "settings", "wi-fi", "wifi", "wireless", "bluetooth", "network settings",
-            "internet settings", "battery settings", "power settings", "display settings",
-            "screen settings", "sound settings", "audio settings", "volume settings",
-            "location settings", "gps settings", "storage settings", "app settings",
-            "application settings", "notification settings", "accessibility settings",
-            "date and time", "security settings"
-        )
-        val looksLikeSettingsRequest = settingsKeywords.any { text.contains(it, ignoreCase = true) } &&
-            listOf("open", "show", "take me", "go to", "bring up", "launch", "display", "access", "change", "view")
-                .any { text.contains(it, ignoreCase = true) }
-        if (looksLikeSettingsRequest && toolRegistry.find("open_settings") != null) {
-            return runTool(toolId = "open_settings", rawInput = text)
-        }
-
-        val deviceInfoKeywords = listOf(
-            "battery", "network", "wifi", "wi-fi", "storage", "device info", "device information",
-            "phone info", "hardware", "speed test", "internet speed", "network speed",
-            "download speed", "upload speed"
-        )
-        val looksLikeDeviceInfoQuery = deviceInfoKeywords.any { text.contains(it, ignoreCase = true) }
-        if (looksLikeDeviceInfoQuery && toolRegistry.find("device_info") != null) {
-            return runTool(toolId = "device_info", rawInput = text)
+        // Milestone 5D: resolve natural language before selecting a tool.
+        // This prevents arbitrary sentences containing words such as
+        // "battery" or "storage" from falling through to Device Info.
+        val resolution = IntentResolver.resolve(text)
+        when (resolution.intent) {
+            IntentResolver.Intent.OPEN_SETTINGS -> {
+                if (toolRegistry.find("open_settings") != null) {
+                    return runTool(toolId = "open_settings", rawInput = text)
+                }
+            }
+            IntentResolver.Intent.DEVICE_INFO -> {
+                if (toolRegistry.find("device_info") != null) {
+                    return runTool(toolId = "device_info", rawInput = text)
+                }
+            }
+            IntentResolver.Intent.UNKNOWN -> Unit
         }
 
         delay(responseDelayMillis)
         val turnNumber = history.count { it.role == Role.ASSISTANT } + 1
-        val replyText = "Mock response #$turnNumber — no AI provider is connected yet. " +
-            "You said: \"${lastUserMessage.text}\""
+        val replyText = if (resolution.intent == IntentResolver.Intent.UNKNOWN) {
+            "I’m not confident I understood that. Tell me what you want to do or what information you want me to check."
+        } else {
+            "Mock response #$turnNumber — no AI provider is connected yet. You said: \"${lastUserMessage.text}\""
+        }
 
         return assistantSuccess(replyText)
     }
