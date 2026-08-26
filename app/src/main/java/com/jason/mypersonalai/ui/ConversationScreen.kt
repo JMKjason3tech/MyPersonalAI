@@ -50,33 +50,15 @@ import com.jason.mypersonalai.agent.Message
 import com.jason.mypersonalai.agent.Role
 import com.jason.mypersonalai.conversation.ConversationUiState
 import com.jason.mypersonalai.conversation.ConversationViewModel
+import com.jason.mypersonalai.voice.VoiceInputController
 
-/**
- * Stateful entry point: owns/obtains the [ConversationViewModel] and
- * connects it to the stateless [ConversationScreen]. This is the only
- * place in the UI layer that knows a ViewModel exists.
- *
- * As of Milestone 5, this is also the only place in the UI layer that
- * touches [android.content.Context] — it's read here via [LocalContext]
- * purely to forward the application context down to [ConversationViewModel]
- * (and from there to [com.jason.mypersonalai.agent.MockAgentEngine]'s
- * Android-capability tools). Nothing else in the UI layer needs it.
- *
- * Milestone 5b: this is also the only place that requests a runtime
- * permission. ACCESS_FINE_LOCATION is requested once, on first
- * composition, purely so DeviceInfoTool's WiFi-name capability can
- * work -- see AndroidNetworkInfoProvider for what happens if it's
- * denied (it degrades gracefully, never crashes or blocks the app).
- */
 @Composable
 fun ConversationRoute() {
     val appContext = LocalContext.current.applicationContext
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { /* Result isn't tracked here -- AndroidNetworkInfoProvider re-checks
-           permission state itself at query time, so no callback handling
-           is needed on this side either way. */ }
+    ) { }
 
     LaunchedEffect(Unit) {
         locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -99,12 +81,6 @@ fun ConversationRoute() {
     )
 }
 
-/**
- * Stateless conversation screen. Pure function of [uiState] plus
- * callbacks — has no knowledge of the ViewModel, AgentEngine, or how
- * responses are produced. This is what makes the UI layer swappable
- * and independently testable/previewable.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationScreen(
@@ -160,7 +136,7 @@ private fun EmptyConversationState() {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Send a message below to start a conversation.",
+            text = "Send a message or use the microphone to start a conversation.",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -175,8 +151,6 @@ private fun MessageList(
 ) {
     val listState = rememberLazyListState()
 
-    // Auto-scroll to the newest message (or the busy indicator) whenever
-    // the conversation grows.
     LaunchedEffect(messages.size, isBusy) {
         val lastIndex = messages.size - 1 + if (isBusy) 1 else 0
         if (lastIndex >= 0) {
@@ -305,30 +279,42 @@ private fun MessageInputBar(
             .fillMaxWidth()
             .imePadding()
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(12.dp)
         ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Message MyPersonalAI") },
-                enabled = enabled,
-                maxLines = 5
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                enabled = enabled && text.isNotBlank(),
-                onClick = {
-                    onSend(text)
-                    text = ""
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Send")
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Message MyPersonalAI") },
+                    enabled = enabled,
+                    maxLines = 5
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    enabled = enabled && text.isNotBlank(),
+                    onClick = {
+                        onSend(text)
+                        text = ""
+                    }
+                ) {
+                    Text("Send")
+                }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            VoiceInputController(
+                enabled = enabled,
+                onTextResult = onSend,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
