@@ -1,7 +1,6 @@
 package com.jason.mypersonalai.voice
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -77,8 +76,8 @@ fun VoiceInputController(
         }
     }
 
-    val startListening: () -> Unit = {
-        if (!enabled || state == VoiceInputState.LISTENING) return@let
+    val startListening: () -> Unit = startListening@{
+        if (!enabled || state == VoiceInputState.LISTENING) return@startListening
 
         val permission = ContextCompat.checkSelfPermission(
             context,
@@ -87,14 +86,14 @@ fun VoiceInputController(
 
         if (!permission) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            return@let
+            return@startListening
         }
 
         val speechRecognizer = recognizer
         if (speechRecognizer == null) {
             state = VoiceInputState.ERROR
             errorMessage = "Speech recognition is unavailable."
-            return@let
+            return@startListening
         }
 
         errorMessage = null
@@ -138,8 +137,7 @@ fun VoiceInputController(
             }
         })
 
-        val intent = RecognizerIntent().apply {
-            action = RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+        val intent = android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
