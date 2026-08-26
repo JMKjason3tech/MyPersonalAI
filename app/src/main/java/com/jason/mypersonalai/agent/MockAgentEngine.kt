@@ -79,16 +79,19 @@ class MockAgentEngine(
             return runTool(toolId = "reset", rawInput = text)
         }
 
-        val resolution = IntentResolver.resolve(text)
+        val contextualResolution = ContextualIntentResolver.resolve(text, history)
+        val resolution = contextualResolution.resolution
         when (resolution.intent) {
             IntentResolver.Intent.OPEN_SETTINGS -> {
                 if (toolRegistry.find("open_settings") != null) {
-                    return runTool(toolId = "open_settings", rawInput = text)
+                    val command = ContextualIntentResolver.canonicalCommand(resolution) ?: text
+                    return runTool(toolId = "open_settings", rawInput = command)
                 }
             }
             IntentResolver.Intent.DEVICE_INFO -> {
                 if (toolRegistry.find("device_info") != null) {
-                    return runTool(toolId = "device_info", rawInput = text)
+                    val command = ContextualIntentResolver.canonicalCommand(resolution) ?: text
+                    return runTool(toolId = "device_info", rawInput = command)
                 }
             }
             IntentResolver.Intent.UNKNOWN -> Unit
