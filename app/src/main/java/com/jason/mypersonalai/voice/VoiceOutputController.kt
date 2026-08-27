@@ -15,7 +15,7 @@ import java.util.Locale
 /**
  * MyPersonalAI voice-output boundary.
  *
- * Speaks only newly supplied assistant text. The controller owns the Android
+ * Speaks newly supplied assistant text. The controller owns the Android
  * TextToSpeech lifecycle so the Compose conversation UI remains declarative.
  */
 @Composable
@@ -31,11 +31,9 @@ fun VoiceOutputController(
     DisposableEffect(context) {
         val engine = TextToSpeech(context) { status ->
             initialized = status == TextToSpeech.SUCCESS
-            if (initialized) {
-                engineSafeSetLanguage(tts)
-            }
         }
         tts = engine
+        engine.setLanguage(Locale.getDefault())
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {
                 onSpeakingChanged(true)
@@ -63,7 +61,6 @@ fun VoiceOutputController(
         val spokenText = text?.trim().orEmpty()
         if (!enabled || !initialized || spokenText.isBlank()) return@LaunchedEffect
 
-        engineSafeSetLanguage(tts)
         tts?.speak(
             spokenText,
             TextToSpeech.QUEUE_FLUSH,
@@ -71,8 +68,4 @@ fun VoiceOutputController(
             "mypersonalai-response"
         )
     }
-}
-
-private fun engineSafeSetLanguage(engine: TextToSpeech?) {
-    engine?.setLanguage(Locale.getDefault())
 }
