@@ -1,7 +1,9 @@
 package com.jason.mypersonalai.ui
 
+import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,19 +43,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import android.Manifest
+import androidx.compose.ui.platform.LocalContext
 import com.jason.mypersonalai.agent.Message
 import com.jason.mypersonalai.agent.Role
 import com.jason.mypersonalai.conversation.ConversationUiState
 import com.jason.mypersonalai.conversation.ConversationViewModel
 import com.jason.mypersonalai.voice.VoiceInputController
+import com.jason.mypersonalai.voice.VoiceOutputController
 
+/**
+ * Milestone 5F assistant entry point.
+ *
+ * Text and voice both submit through ConversationViewModel, so the UI does
+ * not create a second command-processing path for speech.
+ */
 @Composable
 fun ConversationRoute() {
     val appContext = LocalContext.current.applicationContext
@@ -88,9 +100,42 @@ fun ConversationScreen(
     onSendMessage: (String) -> Unit,
     onDismissError: () -> Unit = {}
 ) {
+    var voiceOutputEnabled by remember { mutableStateOf(true) }
+    var isSpeaking by remember { mutableStateOf(false) }
+    val latestAssistantMessage = uiState.messages.lastOrNull { it.role == Role.ASSISTANT }
+
+    VoiceOutputController(
+        text = latestAssistantMessage?.text,
+        enabled = voiceOutputEnabled,
+        onSpeakingChanged = { isSpeaking = it }
+    )
+
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("MyPersonalAI") })
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            text = "MyPersonalAI",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = when {
+                                isSpeaking -> "Speaking…"
+                                uiState.isBusy -> "Thinking…"
+                                else -> "Ready to help"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                actions = {
+                    TextButton(onClick = { voiceOutputEnabled = !voiceOutputEnabled }) {
+                        Text(if (voiceOutputEnabled) "🔊 On" else "🔇 Off")
+                    }
+                }
+            )
         }
     ) { innerPadding ->
         Column(
@@ -100,11 +145,12 @@ fun ConversationScreen(
         ) {
             Box(modifier = Modifier.weight(1f)) {
                 if (uiState.messages.isEmpty()) {
-                    EmptyConversationState()
+                    WelcomeState()
                 } else {
                     MessageList(
                         messages = uiState.messages,
-                        isBusy = uiState.isBusy
+                        isBusy = uiState.isBusy,
+                        isSpeaking = isSpeaking
                     )
                 }
             }
@@ -122,24 +168,41 @@ fun ConversationScreen(
 }
 
 @Composable
-private fun EmptyConversationState() {
+private fun WelcomeState() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .padding(horizontal = 28.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Box(
+            modifier = Modifier
+                .size(88.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "AI", style = MaterialTheme.typography.headlineMedium)
+        }
+        Spacer(modifier = Modifier.height(20.dp))
         Text(
-            text = "No messages yet",
-            style = MaterialTheme.typography.titleMedium
+            text = "How can I help?",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Send a message or use the microphone to start a conversation.",
+            text = "Type a message or tap Talk to speak directly to MyPersonalAI.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = "Try:  Open Wi-Fi settings",
             style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -147,22 +210,21 @@ private fun EmptyConversationState() {
 @Composable
 private fun MessageList(
     messages: List<Message>,
-    isBusy: Boolean
+    isBusy: Boolean,
+    isSpeaking: Boolean
 ) {
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size, isBusy) {
+    LaunchedEffect(messages.size, isBusy, isSpeaking) {
         val lastIndex = messages.size - 1 + if (isBusy) 1 else 0
-        if (lastIndex >= 0) {
-            listState.animateScrollToItem(lastIndex)
-        }
+        if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
     }
 
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(messages, key = { it.id }) { message ->
             MessageBubble(message = message)
@@ -181,27 +243,41 @@ private fun MessageBubble(message: Message) {
     val bubbleColor = if (isUser) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
-        MaterialTheme.colorScheme.secondaryContainer
+        MaterialTheme.colorScheme.surfaceVariant
     }
     val textColor = if (isUser) {
         MaterialTheme.colorScheme.onPrimaryContainer
     } else {
-        MaterialTheme.colorScheme.onSecondaryContainer
+        MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
     ) {
+        if (!isUser) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "AI", style = MaterialTheme.typography.labelSmall)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         Surface(
             color = bubbleColor,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.widthIn(max = 300.dp)
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.widthIn(max = 320.dp)
         ) {
             Text(
                 text = message.text,
                 color = textColor,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 style = MaterialTheme.typography.bodyLarge
             )
         }
@@ -212,23 +288,29 @@ private fun MessageBubble(message: Message) {
 private fun AssistantBusyRow() {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "AI", style = MaterialTheme.typography.labelSmall)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
         Surface(
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            shape = RoundedCornerShape(16.dp)
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(20.dp)
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "MyPersonalAI is thinking…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("MyPersonalAI is thinking…")
             }
         }
     }
@@ -244,7 +326,6 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -253,14 +334,7 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f)
             )
-            Text(
-                text = "Dismiss",
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier
-                    .padding(start = 8.dp)
-                    .clickable(onClick = onDismiss)
-            )
+            TextButton(onClick = onDismiss) { Text("Dismiss") }
         }
     }
 }
@@ -274,7 +348,7 @@ private fun MessageInputBar(
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
+        tonalElevation = 3.dp,
         modifier = Modifier
             .fillMaxWidth()
             .imePadding()
@@ -282,11 +356,11 @@ private fun MessageInputBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Bottom
             ) {
                 OutlinedTextField(
                     value = text,
@@ -294,7 +368,8 @@ private fun MessageInputBar(
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Message MyPersonalAI") },
                     enabled = enabled,
-                    maxLines = 5
+                    maxLines = 4,
+                    shape = RoundedCornerShape(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -302,7 +377,8 @@ private fun MessageInputBar(
                     onClick = {
                         onSend(text)
                         text = ""
-                    }
+                    },
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Text("Send")
                 }
