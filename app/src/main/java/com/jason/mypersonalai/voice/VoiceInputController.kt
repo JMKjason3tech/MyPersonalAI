@@ -7,12 +7,21 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,15 +32,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 
 /**
- * Small UI/controller boundary around Android SpeechRecognizer.
- * Recognition results are returned as plain text so the existing
- * conversation pipeline remains the single command-processing path.
+ * MyPersonalAI-owned microphone boundary around Android SpeechRecognizer.
+ *
+ * The keyboard microphone is never used by this component. A tap here asks
+ * MyPersonalAI for RECORD_AUDIO permission and starts its own recognizer.
  */
 @Composable
 fun VoiceInputController(
@@ -47,9 +60,11 @@ fun VoiceInputController(
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (!granted) {
+        if (granted) {
+            errorMessage = null
+        } else {
             state = VoiceInputState.ERROR
-            errorMessage = "Microphone permission is required for voice input."
+            errorMessage = "Microphone permission is required for MyPersonalAI voice input."
         }
     }
 
@@ -70,30 +85,36 @@ fun VoiceInputController(
 
     LaunchedEffect(state) {
         if (state == VoiceInputState.ERROR) {
-            delay(2500)
+            delay(3500)
             state = VoiceInputState.READY
             errorMessage = null
         }
     }
 
-    val startListening: () -> Unit = startListening@{
-        if (!enabled || state == VoiceInputState.LISTENING) return@startListening
+    fun stopListening() {
+        recognizer?.cancel()
+        state = VoiceInputState.READY
+        errorMessage = null
+    }
 
-        val permission = ContextCompat.checkSelfPermission(
+    fun startListening() {
+        if (!enabled || state == VoiceInputState.LISTENING) return
+
+        val permissionGranted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
 
-        if (!permission) {
+        if (!permissionGranted) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            return@startListening
+            return
         }
 
         val speechRecognizer = recognizer
         if (speechRecognizer == null) {
             state = VoiceInputState.ERROR
             errorMessage = "Speech recognition is unavailable."
-            return@startListening
+            return
         }
 
         errorMessage = null
@@ -145,44 +166,97 @@ fun VoiceInputController(
         speechRecognizer.startListening(intent)
     }
 
-    val stopListening: () -> Unit = {
-        recognizer?.cancel()
-        state = VoiceInputState.READY
-        errorMessage = null
-    }
-
-    Row(
+    Column(
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         when (state) {
             VoiceInputState.READY -> {
-                Button(onClick = startListening, enabled = enabled) {
-                    Text("Mic")
+                Button(
+                    onClick = ::startListening,
+                    enabled = enabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Text("🎙️  Talk to MyPersonalAI", fontWeight = FontWeight.SemiBold)
                 }
             }
+
             VoiceInputState.LISTENING -> {
-                Button(onClick = stopListening, enabled = true) {
-                    Text("Stop")
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 14.dp, horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = CircleShape,
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
+                            Text(
+                                text = "🎙️",
+                                modifier = Modifier.padding(14.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Listening…",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "MyPersonalAI is listening. Speak now.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(onClick = ::stopListening) {
+                            Text("Stop listening")
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Listening…")
             }
+
             VoiceInputState.PROCESSING -> {
-                CircularProgressIndicator(modifier = Modifier.padding(8.dp))
-                Text("Processing voice…")
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.size(10.dp))
+                        Text("Processing what you said…")
+                    }
+                }
                 LaunchedEffect(Unit) {
                     delay(500)
                     state = VoiceInputState.READY
                 }
             }
+
             VoiceInputState.ERROR -> {
-                Button(onClick = startListening, enabled = enabled) {
-                    Text("Retry")
-                }
-                if (errorMessage != null) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(errorMessage!!)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = errorMessage ?: "Voice input failed.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedButton(onClick = ::startListening, enabled = enabled) {
+                        Text("Retry microphone")
+                    }
                 }
             }
         }
