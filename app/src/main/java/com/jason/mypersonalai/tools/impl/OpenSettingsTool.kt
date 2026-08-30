@@ -7,24 +7,19 @@ import com.jason.mypersonalai.tools.ToolError
 import com.jason.mypersonalai.tools.ToolExecutionResult
 import com.jason.mypersonalai.tools.ToolInput
 
-class OpenSettingsTool(
-    private val launcher: AndroidSettingsLauncher
-) : Tool {
-    override val id: String = "open_settings"
-    override val description: String = "Open an Android system Settings screen."
-    override val riskLevel: RiskLevel = RiskLevel.LOW
-
+class OpenSettingsTool(private val launcher: AndroidSettingsLauncher) : Tool {
+    override val id = "open_settings"
+    override val description = "Open an Android system Settings screen."
+    override val riskLevel = RiskLevel.LOW
     override suspend fun execute(input: ToolInput): ToolExecutionResult {
         val request = input.raw.trim()
-        if (request.isBlank()) {
-            return ToolExecutionResult.Failure(ToolError("Tell me which Settings screen you want to open."))
-        }
-
+        if (request.isBlank()) return ToolExecutionResult.Failure(ToolError("Tell me which Settings screen you want to open."))
         val result = launcher.open(request)
         return if (result.success) {
-            ToolExecutionResult.Success(result.message)
-        } else {
-            ToolExecutionResult.Failure(ToolError(result.message))
-        }
+            val message = if (request.equals("open settings", true) || request.equals("settings", true))
+                "Opening Settings. Would you like anything specific?"
+            else result.message
+            ToolExecutionResult.Success(message)
+        } else ToolExecutionResult.Failure(ToolError(result.message))
     }
 }

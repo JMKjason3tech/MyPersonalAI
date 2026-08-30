@@ -137,7 +137,7 @@ fun ConversationScreen(
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(AiDark, Color(0xFF07172A), AiDark))).padding(padding)) {
                     Column(Modifier.fillMaxSize()) {
                         TopHeader(uiState.conversationTitle, isSpeaking, voiceOutputEnabled, onToggleVoice = { voiceOutputEnabled = !voiceOutputEnabled }, onOpenHistory = { drawerScope.launch { drawerState.open() } })
-                        if (uiState.messages.isEmpty()) WelcomeHero(onNewChat)
+                        if (uiState.messages.isEmpty()) WelcomeHero()
                         else MessageList(uiState.messages, uiState.isBusy, isSpeaking)
                         if (uiState.messages.isEmpty()) CapabilityGrid(onSendMessage)
                         else CompactSuggestions(onSendMessage)
@@ -212,7 +212,7 @@ private fun TopHeader(title: String, isSpeaking: Boolean, voiceEnabled: Boolean,
 }
 
 @Composable
-private fun WelcomeHero(onNewChat: () -> Unit) {
+private fun WelcomeHero() {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(108.dp).clip(CircleShape).background(Brush.radialGradient(listOf(AiPurple.copy(alpha = .7f), AiBlue.copy(alpha = .12f), Color.Transparent))), contentAlignment = Alignment.Center) {
             Box(Modifier.size(76.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF182E4B), Color(0xFF0A1828)))), contentAlignment = Alignment.Center) { Text("◉", style = MaterialTheme.typography.displaySmall, color = AiBlue) }
@@ -258,6 +258,12 @@ private fun CapabilityGrid(onSendMessage: (String) -> Unit) {
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionCard("⚙", "Settings", "Open settings", Modifier.weight(1f), onSendMessage)
+            ActionCard("🔆", "Brightness", "Increase brightness", Modifier.weight(1f), onSendMessage)
+            ActionCard("🔊", "Volume", "Increase volume", Modifier.weight(1f), onSendMessage)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionCard("📱", "Apps", "Open an app", Modifier.weight(1f), onSendMessage)
             ActionCard("🧮", "Calculate", "Calculate 25 * 4", Modifier.weight(1f), onSendMessage)
             ActionCard("💡", "Help", "What can you help me with?", Modifier.weight(1f), onSendMessage)
         }
